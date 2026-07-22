@@ -1,0 +1,8 @@
+basedosdados
+pandas
+pyarrow
+google-cloud-storage
+google-cloud-bigquery
+google-cloud-pubsub
+python-dotenv
+great-expectations
