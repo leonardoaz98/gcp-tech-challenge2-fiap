@@ -1,18 +1,18 @@
 import streamlit as st
 import pandas_gbq
 import plotly.express as px
-from config.settings import GCP_PROJECT_ID
 
 st.set_page_config(page_title="Alfabetizacao Municipal", layout="wide")
 
-# Credenciais: st.secrets no Cloud, ADC local
+# Credenciais e projeto: st.secrets no Cloud, config local
 try:
     from google.oauth2 import service_account
-    CREDS = service_account.Credentials.from_service_account_info(
-        dict(st.secrets["gcp_service_account"])
-    )
+    _sa = dict(st.secrets["gcp_service_account"])
+    CREDS = service_account.Credentials.from_service_account_info(_sa)
+    GCP_PROJECT_ID = _sa["project_id"]
 except Exception:
     CREDS = None
+    from config.settings import GCP_PROJECT_ID
 
 
 @st.cache_data(ttl=3600)
