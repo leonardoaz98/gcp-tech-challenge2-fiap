@@ -5,10 +5,19 @@ from config.settings import GCP_PROJECT_ID
 
 st.set_page_config(page_title="Alfabetizacao Municipal", layout="wide")
 
+# Credenciais: st.secrets no Cloud, ADC local
+try:
+    from google.oauth2 import service_account
+    CREDS = service_account.Credentials.from_service_account_info(
+        dict(st.secrets["gcp_service_account"])
+    )
+except Exception:
+    CREDS = None
+
 
 @st.cache_data(ttl=3600)
 def q(sql):
-    return pandas_gbq.read_gbq(sql, project_id=GCP_PROJECT_ID, progress_bar_type=None)
+    return pandas_gbq.read_gbq(sql, project_id=GCP_PROJECT_ID, credentials=CREDS, progress_bar_type=None)
 
 
 st.title("Alfabetizacao na Rede Municipal")
