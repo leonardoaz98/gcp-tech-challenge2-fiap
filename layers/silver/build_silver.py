@@ -170,10 +170,11 @@ def main() -> None:
 
     # --- Metas: wide -> long ---
     chaves_comuns = ["rede", "taxa_alfabetizacao", "percentual_participacao"]
+    chaves_mun = ["id_municipio", "nivel_alfabetizacao"] + chaves_comuns
 
     meta_mun = unpivot_metas(
         padronizar(ler_bronze("meta_alfabetizacao_municipio")),
-        ["id_municipio"] + chaves_comuns,
+        chaves_mun,
         "municipio",
     )
     meta_uf = unpivot_metas(
