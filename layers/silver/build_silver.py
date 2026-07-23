@@ -1,51 +1,55 @@
 """
 Camada Silver - Tratamento e Integracao
-Le a Bronze do disco local, aplica limpeza e padronizacao, faz o unpivot
-das metas (wide -> long) e integra as bases pelas chaves territoriais.
-Grava o resultado no BigQuery (dataset silver).
+
+Le a Bronze do disco local, aplica limpeza e padronizacao, converte as
+metas de formato wide para long e grava no BigQuery (dataset silver).
 """
 
-import os
 import glob
-import logging
 import re
 
 import pandas as pd
-from dotenv import load_dotenv
+import pandas_gbq
 
-load_dotenv()
-
-PROJECT = os.getenv("GCP_PROJECT_ID")
-DATASET_SILVER = os.getenv("BQ_DATASET_SILVER", "silver")
-BRONZE_DIR = "data/bronze"
-ANOS_META = [2024, 2025, 2026, 2027, 2028, 2029, 2030]
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
+from config.logger import get_logger
+from config.settings import (
+    ANOS_META,
+    BQ_DATASET_SILVER,
+    BRONZE_DIR,
+    GCP_PROJECT_ID,
+    TABELAS_SEM_ANO,
+    validar_config,
 )
-log = logging.getLogger("silver")
+from quality.validations import (
+    relatorio_consolidado,
+    validar_integridade_referencial,
+    validar_tabela,
+)
+
+log = get_logger("silver")
 
 
 # ----------------------------------------------------------------------
 # Leitura
 # ----------------------------------------------------------------------
 
-def ler_bronze(tabela: str, com_ano: bool = True) -> pd.DataFrame:
+def ler_bronze(tabela: str) -> pd.DataFrame:
     """
     Le os Parquet de uma tabela da Bronze.
 
-    Tabelas sem coluna 'ano' real foram replicadas em cada diretorio de
-    particao na ingestao. Nesses casos (com_ano=False), lemos apenas um
-    arquivo e deduplicamos, evitando multiplicar os registros.
+    Tabelas sem coluna 'ano' na origem foram replicadas em cada diretorio
+    de particao durante a ingestao. Nesses casos lemos um unico arquivo e
+    deduplicamos, evitando multiplicar os registros.
     """
-    arquivos = sorted(
-        glob.glob(f"{BRONZE_DIR}/{tabela}/**/*.parquet", recursive=True)
-    )
+    padrao = str(BRONZE_DIR / tabela / "**" / "*.parquet")
+    arquivos = sorted(glob.glob(padrao, recursive=True))
+
     if not arquivos:
         raise FileNotFoundError(f"Nenhum Parquet encontrado para '{tabela}'")
 
-    if com_ano:
+    if tabela in TABELAS_SEM_ANO:
+        df = pd.read_parquet(arquivos[0]).drop_duplicates().reset_index(drop=True)
+    else:
         partes = []
         for caminho in arquivos:
             parte = pd.read_parquet(caminho)
@@ -54,12 +58,6 @@ def ler_bronze(tabela: str, com_ano: bool = True) -> pd.DataFrame:
                 parte["ano"] = int(match.group(1))
             partes.append(parte)
         df = pd.concat(partes, ignore_index=True)
-    else:
-        df = pd.read_parquet(arquivos[0])
-        antes = len(df)
-        df = df.drop_duplicates().reset_index(drop=True)
-        if len(df) < antes:
-            log.info(f"[bronze/{tabela}] {antes - len(df)} duplicatas removidas")
 
     log.info(f"[bronze/{tabela}] {df.shape[0]} linhas lidas")
     return df
@@ -74,9 +72,7 @@ def padronizar(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     if "id_municipio" in df.columns:
-        df["id_municipio"] = (
-            df["id_municipio"].astype(str).str.strip().str.zfill(7)
-        )
+        df["id_municipio"] = df["id_municipio"].astype(str).str.strip().str.zfill(7)
 
     if "sigla_uf" in df.columns:
         df["sigla_uf"] = df["sigla_uf"].astype(str).str.strip().str.upper()
@@ -102,15 +98,21 @@ def remover_colunas_constantes(df: pd.DataFrame, protegidas: list) -> pd.DataFra
     return df.drop(columns=constantes)
 
 
+def limpar_metadados(df: pd.DataFrame) -> pd.DataFrame:
+    """Remove as colunas tecnicas de rastreabilidade da Bronze."""
+    return df.drop(columns=["_ingestao_timestamp", "_fonte"], errors="ignore")
+
+
 # ----------------------------------------------------------------------
 # Unpivot das metas
 # ----------------------------------------------------------------------
 
 def unpivot_metas(df: pd.DataFrame, chaves: list, nivel: str) -> pd.DataFrame:
     """Converte meta_alfabetizacao_2024..2030 de colunas para linhas."""
-    cols_meta = [f"meta_alfabetizacao_{a}" for a in ANOS_META]
-    cols_meta = [c for c in cols_meta if c in df.columns]
-
+    cols_meta = [
+        f"meta_alfabetizacao_{a}" for a in ANOS_META
+        if f"meta_alfabetizacao_{a}" in df.columns
+    ]
     id_vars = [c for c in chaves if c in df.columns]
 
     longo = df.melt(
@@ -129,54 +131,16 @@ def unpivot_metas(df: pd.DataFrame, chaves: list, nivel: str) -> pd.DataFrame:
 
 
 # ----------------------------------------------------------------------
-# Validacoes de qualidade
-# ----------------------------------------------------------------------
-
-def validar(df: pd.DataFrame, nome: str, chaves: list) -> dict:
-    """Roda checagens de qualidade e devolve um relatorio."""
-    rel = {"tabela": nome, "linhas": len(df)}
-
-    chaves_existentes = [c for c in chaves if c in df.columns]
-    if chaves_existentes:
-        dups = df.duplicated(subset=chaves_existentes).sum()
-        rel["duplicatas_chave"] = int(dups)
-        if dups:
-            log.warning(f"[{nome}] {dups} duplicatas em {chaves_existentes}")
-
-        nulos_chave = int(df[chaves_existentes].isna().any(axis=1).sum())
-        rel["nulos_em_chave"] = nulos_chave
-        if nulos_chave:
-            log.warning(f"[{nome}] {nulos_chave} linhas com chave nula")
-
-    rel["pct_nulo_medio"] = round(df.isna().mean().mean() * 100, 2)
-    return rel
-
-
-def validar_integridade(filhas: dict, dim: pd.DataFrame, chave: str) -> None:
-    """Confere se as chaves das tabelas filhas existem na dimensao."""
-    universo = set(dim[chave].dropna().unique())
-    for nome, df in filhas.items():
-        if chave not in df.columns:
-            continue
-        orfas = set(df[chave].dropna().unique()) - universo
-        if orfas:
-            log.warning(
-                f"[integridade] {nome}: {len(orfas)} '{chave}' "
-                f"ausentes na dimensao (ex: {list(orfas)[:3]})"
-            )
-        else:
-            log.info(f"[integridade] {nome}: OK contra {chave}")
-
-
-# ----------------------------------------------------------------------
 # Escrita
 # ----------------------------------------------------------------------
 
 def gravar_bigquery(df: pd.DataFrame, tabela: str) -> None:
-    destino = f"{DATASET_SILVER}.{tabela}"
-    df.to_gbq(
+    """Grava a tabela no dataset Silver do BigQuery."""
+    destino = f"{BQ_DATASET_SILVER}.{tabela}"
+    pandas_gbq.to_gbq(
+        df,
         destination_table=destino,
-        project_id=PROJECT,
+        project_id=GCP_PROJECT_ID,
         if_exists="replace",
         progress_bar=False,
     )
@@ -187,68 +151,61 @@ def gravar_bigquery(df: pd.DataFrame, tabela: str) -> None:
 # Pipeline
 # ----------------------------------------------------------------------
 
-def main():
+def main() -> None:
+    validar_config()
     log.info("=== Iniciando construcao da camada Silver ===")
-    relatorio = []
+    resultados = []
 
-    # --- Dimensao municipio (resultados por municipio e ano) ---
-    municipio = padronizar(ler_bronze("municipio"))
+    # --- Resultados por municipio ---
+    municipio = limpar_metadados(padronizar(ler_bronze("municipio")))
     municipio = remover_colunas_constantes(municipio, ["id_municipio", "ano"])
-    municipio = municipio.drop(columns=["_ingestao_timestamp", "_fonte"], errors="ignore")
-    relatorio.append(validar(municipio, "municipio", ["id_municipio", "ano", "rede"]))
+    resultados.append(
+        validar_tabela(municipio, "municipio", ["id_municipio", "ano", "rede"])
+    )
 
     # --- Resultados por UF ---
-    uf = padronizar(ler_bronze("uf"))
+    uf = limpar_metadados(padronizar(ler_bronze("uf")))
     uf = remover_colunas_constantes(uf, ["sigla_uf", "ano"])
-    uf = uf.drop(columns=["_ingestao_timestamp", "_fonte"], errors="ignore")
-    relatorio.append(validar(uf, "uf", ["sigla_uf", "rede", "ano"]))
+    resultados.append(validar_tabela(uf, "uf", ["sigla_uf", "rede", "ano"]))
 
-    # --- Metas: unpivot wide -> long ---
-    meta_mun_raw = padronizar(ler_bronze("meta_alfabetizacao_municipio", com_ano=False))
-    meta_uf_raw = padronizar(ler_bronze("meta_alfabetizacao_uf", com_ano=False))
-    meta_br_raw = padronizar(ler_bronze("meta_alfabetizacao_brasil", com_ano=False))
+    # --- Metas: wide -> long ---
+    chaves_comuns = ["rede", "taxa_alfabetizacao", "percentual_participacao"]
 
     meta_mun = unpivot_metas(
-        meta_mun_raw,
-        ["id_municipio", "rede", "taxa_alfabetizacao", "percentual_participacao"],
+        padronizar(ler_bronze("meta_alfabetizacao_municipio")),
+        ["id_municipio"] + chaves_comuns,
         "municipio",
     )
     meta_uf = unpivot_metas(
-        meta_uf_raw,
-        ["sigla_uf", "rede", "taxa_alfabetizacao", "percentual_participacao"],
+        padronizar(ler_bronze("meta_alfabetizacao_uf")),
+        ["sigla_uf"] + chaves_comuns,
         "uf",
     )
     meta_br = unpivot_metas(
-        meta_br_raw,
-        ["rede", "taxa_alfabetizacao", "percentual_participacao"],
+        padronizar(ler_bronze("meta_alfabetizacao_brasil")),
+        chaves_comuns,
         "brasil",
     )
 
-    relatorio.append(validar(meta_mun, "meta_municipio", ["id_municipio", "ano_meta"]))
-    relatorio.append(validar(meta_uf, "meta_uf", ["sigla_uf", "ano_meta"]))
+    resultados.append(
+        validar_tabela(meta_mun, "meta_municipio", ["id_municipio", "ano_meta"])
+    )
+    resultados.append(validar_tabela(meta_uf, "meta_uf", ["sigla_uf", "ano_meta"]))
 
     # --- Integridade referencial ---
-    validar_integridade(
-        {"meta_alfabetizacao_municipio": meta_mun},
-        municipio,
-        "id_municipio",
-    )
-    validar_integridade(
-        {"meta_alfabetizacao_uf": meta_uf},
-        uf,
-        "sigla_uf",
-    )
+    validar_integridade_referencial(meta_mun, "meta_municipio", municipio, "id_municipio")
+    validar_integridade_referencial(meta_uf, "meta_uf", uf, "sigla_uf")
 
-    # --- Grava no BigQuery ---
+    # --- Escrita ---
     gravar_bigquery(municipio, "municipio_resultado")
     gravar_bigquery(uf, "uf_resultado")
     gravar_bigquery(meta_mun, "meta_municipio")
     gravar_bigquery(meta_uf, "meta_uf")
     gravar_bigquery(meta_br, "meta_brasil")
 
-    # --- Relatorio final ---
+    # --- Relatorio ---
     log.info("=== Relatorio de qualidade ===")
-    print(pd.DataFrame(relatorio).to_string(index=False))
+    print(relatorio_consolidado(resultados).to_string(index=False))
     log.info("=== Silver concluida ===")
 
 

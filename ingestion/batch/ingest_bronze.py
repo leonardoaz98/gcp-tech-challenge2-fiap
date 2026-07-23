@@ -1,59 +1,51 @@
 """
 Ingestao Batch - Camada Bronze
-Baixa as tabelas do dataset br_inep_avaliacao_alfabetizacao da Base dos Dados
-e grava em Parquet particionado no Cloud Storage, sem transformacoes.
+
+Baixa as tabelas do dataset br_inep_avaliacao_alfabetizacao da Base dos
+Dados e grava em Parquet no Cloud Storage, sem transformacoes.
 """
 
 import os
-import logging
 from datetime import datetime, timezone
 
 import basedosdados as bd
 import pandas as pd
-from dotenv import load_dotenv
 from google.cloud import storage
 
-load_dotenv()
-
-PROJECT = os.getenv("GCP_PROJECT_ID")
-BUCKET = os.getenv("GCS_BUCKET")
-DATASET = "br_inep_avaliacao_alfabetizacao"
-LOCAL_DIR = "data/bronze"
-
-# Tabela -> colunas de particionamento (vazio = sem particao)
-TABELAS = {
-    "uf": ["ano"],
-    "municipio": [],
-    "alunos": ["ano"],
-    "meta_alfabetizacao_brasil": ["ano"],
-    "meta_alfabetizacao_uf": ["ano"],
-    "meta_alfabetizacao_municipio": ["ano"],
-    "dicionario": [],
-}
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
+from config.logger import get_logger
+from config.settings import (
+    BD_DATASET,
+    BRONZE_DIR,
+    GCP_PROJECT_ID,
+    GCS_BUCKET,
+    TABELAS_BRONZE,
+    validar_config,
 )
-log = logging.getLogger("bronze")
+
+log = get_logger("bronze")
 
 
 def extrair(tabela: str) -> pd.DataFrame:
     """Le a tabela completa da Base dos Dados via BigQuery."""
-    query = f"SELECT * FROM `basedosdados.{DATASET}.{tabela}`"
+    query = f"SELECT * FROM `basedosdados.{BD_DATASET}.{tabela}`"
     log.info(f"[{tabela}] extraindo...")
-    df = bd.read_sql(query=query, billing_project_id=PROJECT)
+    df = bd.read_sql(query=query, billing_project_id=GCP_PROJECT_ID)
     log.info(f"[{tabela}] {df.shape[0]} linhas x {df.shape[1]} colunas")
     return df
 
 
 def gravar_local(df: pd.DataFrame, tabela: str, particoes: list) -> str:
-    """Grava em Parquet, particionado quando aplicavel."""
-    df["_ingestao_timestamp"] = datetime.now(timezone.utc)
-    df["_fonte"] = f"basedosdados.{DATASET}.{tabela}"
+    """
+    Grava em Parquet, particionado quando aplicavel.
 
-    destino = f"{LOCAL_DIR}/{tabela}"
-    os.makedirs(destino, exist_ok=True)
+    Adiciona metadados de rastreabilidade exigidos pela governanca.
+    """
+    df = df.copy()
+    df["_ingestao_timestamp"] = datetime.now(timezone.utc)
+    df["_fonte"] = f"basedosdados.{BD_DATASET}.{tabela}"
+
+    destino = BRONZE_DIR / tabela
+    destino.mkdir(parents=True, exist_ok=True)
 
     particoes_validas = [c for c in particoes if c in df.columns]
 
@@ -67,38 +59,39 @@ def gravar_local(df: pd.DataFrame, tabela: str, particoes: list) -> str:
         log.info(f"[{tabela}] particionado por {particoes_validas}")
     else:
         df.to_parquet(
-            f"{destino}/{tabela}.parquet",
+            destino / f"{tabela}.parquet",
             index=False,
             compression="snappy",
         )
         log.info(f"[{tabela}] gravado sem particao")
 
-    return destino
+    return str(destino)
 
 
 def enviar_bucket(caminho_local: str, tabela: str) -> int:
     """Sobe os arquivos locais para gs://BUCKET/bronze/<tabela>/."""
-    client = storage.Client(project=PROJECT)
-    bucket = client.bucket(BUCKET)
+    client = storage.Client(project=GCP_PROJECT_ID)
+    bucket = client.bucket(GCS_BUCKET)
     enviados = 0
 
     for raiz, _, arquivos in os.walk(caminho_local):
         for arquivo in arquivos:
             local = os.path.join(raiz, arquivo)
             relativo = os.path.relpath(local, caminho_local)
-            blob_path = f"bronze/{tabela}/{relativo}"
-            bucket.blob(blob_path).upload_from_filename(local)
+            bucket.blob(f"bronze/{tabela}/{relativo}").upload_from_filename(local)
             enviados += 1
 
     log.info(f"[{tabela}] {enviados} arquivo(s) enviado(s) ao bucket")
     return enviados
 
 
-def main():
-    log.info(f"Iniciando ingestao Bronze | projeto={PROJECT} | bucket={BUCKET}")
+def main() -> None:
+    validar_config()
+    log.info(f"Iniciando ingestao Bronze | projeto={GCP_PROJECT_ID} | bucket={GCS_BUCKET}")
+
     sucesso, falha = [], []
 
-    for tabela, particoes in TABELAS.items():
+    for tabela, particoes in TABELAS_BRONZE.items():
         try:
             df = extrair(tabela)
             caminho = gravar_local(df, tabela, particoes)
