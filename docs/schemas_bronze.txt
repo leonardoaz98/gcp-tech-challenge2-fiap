@@ -1,0 +1,133 @@
+==========================================================================================
+TABELA: uf  |  145 linhas x 16 colunas
+------------------------------------------------------------------------------------------
+                                        tipo  nulos  pct_nulo  unicos
+sigla_uf                              object      0      0.00      25
+serie                                 object      0      0.00       1
+rede                                  object      0      0.00       4
+taxa_alfabetizacao                   float64      0      0.00     139
+media_portugues                      float64      0      0.00     140
+proporcao_aluno_nivel_0              float64     70     48.28      60
+proporcao_aluno_nivel_1              float64     70     48.28      65
+proporcao_aluno_nivel_2              float64     70     48.28      68
+proporcao_aluno_nivel_3              float64     70     48.28      65
+proporcao_aluno_nivel_4              float64     70     48.28      69
+proporcao_aluno_nivel_5              float64     70     48.28      67
+proporcao_aluno_nivel_6              float64     70     48.28      69
+proporcao_aluno_nivel_7              float64     70     48.28      67
+proporcao_aluno_nivel_8              float64     70     48.28      64
+_ingestao_timestamp      datetime64[us, UTC]      0      0.00       1
+_fonte                                object      0      0.00       1
+  -> sigla_uf: 25 valores unicos | exemplo: ['RJ', 'GO', 'ES']
+
+==========================================================================================
+TABELA: municipio  |  23995 linhas x 17 colunas
+------------------------------------------------------------------------------------------
+                                        tipo  nulos  pct_nulo  unicos
+ano                                    Int64      0      0.00       2
+id_municipio                          object      0      0.00    5550
+serie                                 object      0      0.00       1
+rede                                  object      0      0.00       4
+taxa_alfabetizacao                   float64      0      0.00    6161
+media_portugues                      float64      0      0.00   13321
+proporcao_aluno_nivel_0              float64  11547     48.12     943
+proporcao_aluno_nivel_1              float64  11547     48.12    1374
+proporcao_aluno_nivel_2              float64  11547     48.12    1922
+proporcao_aluno_nivel_3              float64  11547     48.12    2289
+proporcao_aluno_nivel_4              float64  11547     48.12    2620
+proporcao_aluno_nivel_5              float64  11547     48.12    2965
+proporcao_aluno_nivel_6              float64  11547     48.12    2893
+proporcao_aluno_nivel_7              float64  11547     48.12    2151
+proporcao_aluno_nivel_8              float64  11547     48.12    1404
+_ingestao_timestamp      datetime64[us, UTC]      0      0.00       1
+_fonte                                object      0      0.00       1
+  -> id_municipio: 5550 valores unicos | exemplo: ['1100031', '1100072', '1100189']
+  -> ano: 2 valores unicos | exemplo: [2023, 2023, 2023]
+
+==========================================================================================
+TABELA: alunos  |  3867999 linhas x 13 colunas
+------------------------------------------------------------------------------------------
+                                      tipo   nulos  pct_nulo   unicos
+id_municipio                        object       0      0.00     5548
+id_escola                           object       0      0.00    42811
+id_aluno                            object       0      0.00  2352328
+caderno                             object       0      0.00       22
+serie                               object       0      0.00        1
+rede                                object       0      0.00        3
+presenca                            object       0      0.00        2
+preenchimento_caderno               object       0      0.00        2
+alfabetizado                        object       0      0.00        2
+proficiencia                       float64  513338     13.27  1299544
+peso_aluno                         float64  513338     13.27    70528
+_ingestao_timestamp    datetime64[us, UTC]       0      0.00        1
+_fonte                              object       0      0.00        1
+  -> id_municipio: 5548 valores unicos | exemplo: ['1302108', '1714880', '2111300']
+
+==========================================================================================
+TABELA: meta_alfabetizacao_brasil  |  3 linhas x 12 colunas
+------------------------------------------------------------------------------------------
+                                        tipo  nulos  pct_nulo  unicos
+rede                                  object      0       0.0       1
+taxa_alfabetizacao                   float64      0       0.0       3
+meta_alfabetizacao_2024              float64      0       0.0       2
+meta_alfabetizacao_2025              float64      0       0.0       2
+meta_alfabetizacao_2026              float64      0       0.0       2
+meta_alfabetizacao_2027              float64      0       0.0       2
+meta_alfabetizacao_2028              float64      0       0.0       2
+meta_alfabetizacao_2029              float64      0       0.0       2
+meta_alfabetizacao_2030              float64      0       0.0       1
+percentual_participacao              float64      0       0.0       3
+_ingestao_timestamp      datetime64[us, UTC]      0       0.0       1
+_fonte                                object      0       0.0       1
+
+==========================================================================================
+TABELA: meta_alfabetizacao_uf  |  81 linhas x 13 colunas
+------------------------------------------------------------------------------------------
+                                        tipo  nulos  pct_nulo  unicos
+sigla_uf                              object      0      0.00      27
+rede                                  object      0      0.00       1
+taxa_alfabetizacao                   float64      4      4.94      69
+meta_alfabetizacao_2024              float64      9     11.11      42
+meta_alfabetizacao_2025              float64      3      3.70      44
+meta_alfabetizacao_2026              float64      2      2.47      39
+meta_alfabetizacao_2027              float64      2      2.47      38
+meta_alfabetizacao_2028              float64      2      2.47      32
+meta_alfabetizacao_2029              float64      2      2.47      25
+meta_alfabetizacao_2030              float64      2      2.47       1
+percentual_participacao              float64      4      4.94      62
+_ingestao_timestamp      datetime64[us, UTC]      0      0.00       1
+_fonte                                object      0      0.00       1
+  -> sigla_uf: 27 valores unicos | exemplo: ['RR', 'SE', 'BA']
+
+==========================================================================================
+TABELA: meta_alfabetizacao_municipio  |  10704 linhas x 14 colunas
+------------------------------------------------------------------------------------------
+                                        tipo  nulos  pct_nulo  unicos
+id_municipio                          object      0      0.00    5352
+rede                                  object      0      0.00       1
+taxa_alfabetizacao                   float64    120      1.12    3876
+meta_alfabetizacao_2024              float64    240      2.24    2745
+meta_alfabetizacao_2025              float64      0      0.00    2501
+meta_alfabetizacao_2026              float64      0      0.00    2284
+meta_alfabetizacao_2027              float64      0      0.00    1889
+meta_alfabetizacao_2028              float64      0      0.00    1387
+meta_alfabetizacao_2029              float64      0      0.00     755
+meta_alfabetizacao_2030              float64      0      0.00       1
+nivel_alfabetizacao                    Int64    120      1.12       6
+percentual_participacao              float64    120      1.12    2153
+_ingestao_timestamp      datetime64[us, UTC]      0      0.00       1
+_fonte                                object      0      0.00       1
+  -> id_municipio: 5352 valores unicos | exemplo: ['4301750', '2406908', '1718501']
+
+==========================================================================================
+TABELA: dicionario  |  27 linhas x 7 colunas
+------------------------------------------------------------------------------------------
+                                    tipo  nulos  pct_nulo  unicos
+id_tabela                         object      0       0.0       3
+nome_coluna                       object      0       0.0       5
+chave                             object      0       0.0       7
+cobertura_temporal                object      0       0.0       1
+valor                             object      0       0.0      14
+_ingestao_timestamp  datetime64[us, UTC]      0       0.0       1
+_fonte                            object      0       0.0       1
+
