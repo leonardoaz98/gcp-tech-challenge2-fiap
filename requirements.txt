@@ -1,8 +1,16 @@
+# --- Acesso a dados ---
 basedosdados
 pandas
 pyarrow
+
+# --- Google Cloud ---
 google-cloud-storage
 google-cloud-bigquery
 google-cloud-pubsub
+pandas-gbq
+
+# --- Utilitarios ---
 python-dotenv
+
+# --- Qualidade de dados ---
 great-expectations
