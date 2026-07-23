@@ -1,8 +1,25 @@
+# Ambiente virtual
 .venv/
+venv/
+
+# Python
 __pycache__/
 *.pyc
+*.egg-info/
+build/
+dist/
+
+# Credenciais
 .env
+
+# Dados locais (a Bronze vive no Cloud Storage)
 data/
 *.parquet
 *.csv
+
+# Notebooks
 .ipynb_checkpoints/
+
+# Editor
+.vscode/
+.idea/
