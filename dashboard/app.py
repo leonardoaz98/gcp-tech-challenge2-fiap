@@ -9,6 +9,14 @@ Criterio de media: sempre municipal. Os KPIs reagregam a partir de
 contrario o numero nacional nao fecha com o municipal.
 """
 
+import sys
+from pathlib import Path
+
+# streamlit run coloca dashboard/ no sys.path, nao a raiz do projeto.
+# Sem isso, o fallback 'from config.settings import ...' falha com
+# ModuleNotFoundError fora do Streamlit Cloud, onde st.secrets nao existe.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pandas as pd
 import pandas_gbq
 import plotly.express as px
