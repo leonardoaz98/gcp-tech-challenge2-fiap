@@ -45,9 +45,14 @@ particoes necessarias, reduzindo o volume escaneado.
 **Armadilha encontrada:** particionar por uma coluna que nao existe na
 origem replica o dataset inteiro em cada diretorio de particao. As tabelas
 de metas foram ingeridas com `partition_cols=["ano"]` sem possuir a coluna,
-gerando `meta_alfabetizacao_uf` com 81 linhas em vez de 27. A leitura na
-Silver passou a distinguir tabelas com particao real das replicadas, e a
-configuracao de ingestao foi corrigida em `config/settings.py`.
+gerando `meta_alfabetizacao_uf` com 81 linhas em vez de 27.
+
+**Correcao definitiva:** `gravar_local` passou a validar a existencia da
+coluna antes de particionar (`particoes_validas`), eliminando o bug na
+origem. O workaround que existia na leitura da Silver (`TABELAS_SEM_ANO`)
+foi removido por descrever um estado que nao existe mais, substituido por
+uma deduplicacao defensiva que protege contra dado antigo remanescente no
+bucket.
 
 ---
 
@@ -123,6 +128,82 @@ modelos. E mais barato falhar cedo.
 das demais. O relatorio final consolida sucessos e falhas.
 
 ---
+
+---
+
+## 11. Ingestao streaming via Cloud Pub/Sub
+
+**Decisao:** Pub/Sub com consumer em micro-batch, gravando em zona
+separada da Bronze (`bronze/streaming/`).
+
+**Motivo:** o Saeb e anual, mas o dado nao para de se mover entre as
+ondas. Secretarias enviam correcoes de cadastro, revisoes de meta e novas
+medicoes ao longo do ano. Tratar isso como batch significaria esperar o
+proximo ciclo para refletir uma correcao — inaceitavel para uma politica
+com meta anual ate 2030.
+
+**Trade-off:** um componente a mais para operar e monitorar. Compensado
+pelo fato de o Pub/Sub ser serverless, sem cluster para gerenciar.
+
+---
+
+## 12. Micro-batch em vez de um arquivo por evento
+
+**Decisao:** o consumer acumula ate 100 eventos ou 30 segundos antes de
+gravar um unico Parquet.
+
+**Motivo:** object storage cobra por operacao, e milhares de objetos
+minusculos degradam a leitura analitica — o small files problem. O buffer
+equilibra latencia e custo.
+
+**Trade-off:** ate 30 segundos de latencia adicional. Irrelevante para um
+indicador com meta anual.
+
+---
+
+## 13. At-least-once no broker, exactly-once na Silver
+
+**Decisao:** o ack so acontece apos a gravacao confirmada no bucket; a
+deduplicacao por `id_evento` fica na promocao para a Silver.
+
+**Motivo:** se o processo morrer no meio de um lote, o Pub/Sub reentrega
+a mensagem. Perder evento e pior que processar duas vezes. A chave de
+deduplicacao converte a garantia do broker em semantica efetivamente
+exactly-once na camada analitica, sem exigir transacao distribuida.
+
+---
+
+## 14. Views sem filtro e com colunas de reagregacao
+
+**Decisao:** nenhuma view da Gold filtra linha estruturalmente valida, e
+toda view agregada carrega `soma_*` e `qtd_*` alem da media.
+
+**Motivo:** duas licoes aprendidas na pratica.
+
+A primeira: as views filtravam por `WHERE gap_meta IS NOT NULL`. Como
+`gap_meta` so existe quando ha resultado e meta, o filtro reduzia
+silenciosamente todo o historico a 2024 — anulando o FULL OUTER JOIN
+construido na fato. Nenhum erro, nenhum alerta.
+
+A segunda: media de media nao e reagregavel. A media nacional calculada
+a partir das medias por UF diverge da media sobre os municipios, porque
+cada UF tem um numero diferente deles. Com soma e contagem, o consumidor
+reagrega em qualquer nivel sem perder precisao.
+
+**Criterio oficial:** a media e sempre municipal. O municipio e a unidade
+de gestao do Compromisso Nacional, entao UF e regiao sao agregacoes de
+municipios.
+
+---
+
+## 15. Diagnostico de cobertura como alarme
+
+**Decisao:** `build_views.py` reporta a distribuicao de linhas por ano
+apos criar cada view.
+
+**Motivo:** silent-drop e a classe de bug mais cara deste projeto porque
+nao gera excecao. Um filtro mal colocado produz um dashboard que parece
+funcionar. Logar a cobertura torna a perda visivel na hora.
 
 ## Achados de qualidade de dados
 
