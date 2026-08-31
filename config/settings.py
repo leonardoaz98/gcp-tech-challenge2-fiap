@@ -44,16 +44,6 @@ TABELAS_BRONZE = {
     "dicionario": [],
 }
 
-# Tabelas sem coluna 'ano' real na origem — foram replicadas por particao
-# na ingestao e devem ser lidas de um unico arquivo
-TABELAS_SEM_ANO = {
-    "meta_alfabetizacao_brasil",
-    "meta_alfabetizacao_uf",
-    "meta_alfabetizacao_municipio",
-    "dicionario",
-}
-
-
 def validar_config() -> None:
     """Falha cedo se alguma variavel obrigatoria estiver ausente."""
     obrigatorias = {
