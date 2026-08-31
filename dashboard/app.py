@@ -275,10 +275,12 @@ fig4.add_vline(
     line_width=1,
 )
 
+st.plotly_chart(fig4, width="stretch")
+
 st.caption(
     "A área sombreada marca o período de meta pactuada, sem resultado medido. "
-"A série realizada termina em 2024 — a descontinuidade é esperada, "
-"não falha de dado."
+    "A série realizada termina em 2024 — a descontinuidade é esperada, "
+    "não falha de dado."
 )
 
 st.divider()
