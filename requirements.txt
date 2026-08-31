@@ -1,7 +1,20 @@
-streamlit
-pandas
-pandas-gbq
-plotly
-google-cloud-bigquery
-google-auth
-db-dtypes
+# Dependencias do pipeline (ingestao, camadas e qualidade).
+# O dashboard tem requirements proprio em dashboard/requirements.txt,
+# enxuto para o deploy no Streamlit Cloud.
+
+# Ingestao
+basedosdados>=2.0
+google-cloud-storage>=2.14
+google-cloud-pubsub>=2.21
+
+# Processamento
+pandas>=2.0
+pyarrow>=14.0
+
+# BigQuery
+pandas-gbq>=0.22
+google-cloud-bigquery>=3.17
+db-dtypes>=1.2
+
+# Configuracao
+python-dotenv>=1.0

@@ -1,0 +1,9 @@
+# Dependencias exclusivas do deploy do dashboard no Streamlit Cloud.
+# Mantido separado do pipeline: o app so le a Gold, nao ingere dado.
+streamlit>=1.32
+pandas>=2.0
+plotly>=5.20
+pandas-gbq>=0.22
+google-cloud-bigquery>=3.17
+google-auth>=2.28
+db-dtypes>=1.2
