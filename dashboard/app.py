@@ -155,7 +155,7 @@ else:
         labels={"taxa_municipal": "Taxa (%)", "sigla_uf": "UF", "regiao": "Região"},
     )
     fig.update_layout(height=650, yaxis={"categoryorder": "total ascending"})
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
 # ----------------------------------------------------------------------
 # Recorte regional — respeita os mesmos filtros do topo
@@ -189,7 +189,7 @@ with col_a:
         color_discrete_map=PALETA,
         category_orders=CATEGORIAS,
     )
-    st.plotly_chart(fig2, use_container_width=True)
+    st.plotly_chart(fig2, width="stretch")
 
 with col_b:
     atingimento = regiao_df.assign(
@@ -210,7 +210,7 @@ with col_b:
             category_orders=CATEGORIAS,
         )
         fig3.update_traces(marker_color=COR_REALIZADO)
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig3, width="stretch")
 
 st.divider()
 
@@ -318,7 +318,7 @@ else:
 
 st.dataframe(
     tabela[["nome_municipio", "sigla_uf", "regiao", "taxa_realizada", "meta", "gap_meta"]],
-    use_container_width=True,
+    width="stretch",
     height=400,
     hide_index=True,
     column_config={
