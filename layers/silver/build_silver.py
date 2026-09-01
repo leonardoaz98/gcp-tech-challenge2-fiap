@@ -17,7 +17,6 @@ from config.settings import (
     BQ_DATASET_SILVER,
     BRONZE_DIR,
     GCP_PROJECT_ID,
-    TABELAS_SEM_ANO,
     validar_config,
 )
 from quality.validations import (
@@ -28,6 +27,10 @@ from quality.validations import (
 
 log = get_logger("silver")
 
+# Colunas que carregam semantica de negocio e nunca podem ser descartadas
+# automaticamente, ainda que constantes num recorte especifico.
+COLUNAS_DE_NEGOCIO = {"rede", "serie", "sigla_uf", "id_municipio", "ano"}
+
 
 # ----------------------------------------------------------------------
 # Leitura
@@ -37,9 +40,15 @@ def ler_bronze(tabela: str) -> pd.DataFrame:
     """
     Le os Parquet de uma tabela da Bronze.
 
-    Tabelas sem coluna 'ano' na origem foram replicadas em cada diretorio
-    de particao durante a ingestao. Nesses casos lemos um unico arquivo e
-    deduplicamos, evitando multiplicar os registros.
+    A coluna de particao nao e gravada dentro do arquivo pelo Hive layout -
+    ela vive no nome do diretorio (`ano=2024/`). Por isso e reconstruida a
+    partir do caminho quando ausente no DataFrame.
+
+    Historico: uma versao anterior da ingestao particionava por `ano` mesmo
+    em tabelas que nao possuiam a coluna, replicando o dataset inteiro em
+    cada diretorio. O bug foi corrigido na origem (ver `gravar_local`), mas
+    a deduplicacao permanece como rede de seguranca contra reingestao de
+    dado antigo que ainda esteja no bucket.
     """
     padrao = str(BRONZE_DIR / tabela / "**" / "*.parquet")
     arquivos = sorted(glob.glob(padrao, recursive=True))
@@ -47,19 +56,25 @@ def ler_bronze(tabela: str) -> pd.DataFrame:
     if not arquivos:
         raise FileNotFoundError(f"Nenhum Parquet encontrado para '{tabela}'")
 
-    if tabela in TABELAS_SEM_ANO:
-        df = pd.read_parquet(arquivos[0]).drop_duplicates().reset_index(drop=True)
-    else:
-        partes = []
-        for caminho in arquivos:
-            parte = pd.read_parquet(caminho)
-            match = re.search(r"ano=(\d{4})", caminho)
-            if match and "ano" not in parte.columns:
-                parte["ano"] = int(match.group(1))
-            partes.append(parte)
-        df = pd.concat(partes, ignore_index=True)
+    partes = []
+    for caminho in arquivos:
+        parte = pd.read_parquet(caminho)
+        match = re.search(r"ano=(\d{4})", caminho)
+        if match and "ano" not in parte.columns:
+            parte["ano"] = int(match.group(1))
+        partes.append(parte)
 
-    log.info(f"[bronze/{tabela}] {df.shape[0]} linhas lidas")
+    df = pd.concat(partes, ignore_index=True)
+
+    antes = len(df)
+    df = df.drop_duplicates().reset_index(drop=True)
+    if len(df) < antes:
+        log.warning(
+            f"[bronze/{tabela}] {antes - len(df)} duplicatas removidas "
+            f"(possivel residuo de particionamento antigo)"
+        )
+
+    log.info(f"[bronze/{tabela}] {df.shape[0]} linhas lidas de {len(arquivos)} arquivo(s)")
     return df
 
 
@@ -88,13 +103,30 @@ def padronizar(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def remover_colunas_constantes(df: pd.DataFrame, protegidas: list) -> pd.DataFrame:
-    """Descarta colunas com um unico valor, exceto as protegidas."""
+    """
+    Descarta colunas com um unico valor, exceto as protegidas.
+
+    Colunas de negocio nunca sao removidas mesmo quando constantes num
+    recorte especifico. `rede`, por exemplo, e o filtro que garante que
+    resultados e metas falem da mesma populacao na Gold - se ela sumisse
+    da Silver por ser constante, `construir_fato` quebraria com KeyError.
+    """
+    inegociaveis = set(protegidas) | COLUNAS_DE_NEGOCIO
+
     constantes = [
         c for c in df.columns
-        if c not in protegidas and df[c].nunique(dropna=False) <= 1
+        if c not in inegociaveis and df[c].nunique(dropna=False) <= 1
     ]
     if constantes:
         log.info(f"  removendo colunas constantes: {constantes}")
+
+    preservadas = [
+        c for c in df.columns
+        if c in COLUNAS_DE_NEGOCIO and df[c].nunique(dropna=False) <= 1
+    ]
+    if preservadas:
+        log.info(f"  constantes preservadas (chave de negocio): {preservadas}")
+
     return df.drop(columns=constantes)
 
 
