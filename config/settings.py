@@ -23,6 +23,16 @@ BQ_DATASET_GOLD = os.getenv("BQ_DATASET_GOLD", "gold")
 PUBSUB_TOPIC = os.getenv("PUBSUB_TOPIC", "indicador-updates")
 GCP_REGION = os.getenv("GCP_REGION", "southamerica-east1")
 
+# --- Streaming (Pub/Sub) ---
+PUBSUB_SUBSCRIPTION = os.getenv("PUBSUB_SUBSCRIPTION", "indicador-updates-sub")
+
+# Zona de streaming dentro da Bronze, separada do caminho batch.
+# Origens com contrato e cadencia diferentes nao compartilham prefixo.
+BRONZE_STREAMING_PREFIX = "bronze/streaming"
+
+# Tabela Silver que materializa os eventos consumidos do topico
+SILVER_TABELA_EVENTOS = "evento_indicador"
+
 # --- Base dos Dados ---
 BD_DATASET = "br_inep_avaliacao_alfabetizacao"
 
