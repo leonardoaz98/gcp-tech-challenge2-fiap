@@ -13,6 +13,8 @@ Escrita em modo append com janela: apenas eventos ainda nao presentes na
 Silver sao inseridos, entao a execucao e idempotente.
 """
 
+import io
+
 import pandas as pd
 import pandas_gbq
 from google.cloud import storage
@@ -46,7 +48,7 @@ def ler_bronze_streaming() -> pd.DataFrame:
         return pd.DataFrame()
 
     partes = [
-        pd.read_parquet(f"gs://{GCS_BUCKET}/{blob.name}") for blob in blobs
+        pd.read_parquet(io.BytesIO(blob.download_as_bytes())) for blob in blobs
     ]
     df = pd.concat(partes, ignore_index=True)
     log.info(f"[streaming] {len(df)} evento(s) lidos de {len(blobs)} micro-batch(es)")

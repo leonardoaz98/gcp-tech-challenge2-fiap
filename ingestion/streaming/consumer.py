@@ -25,6 +25,7 @@ import time
 from datetime import datetime, timezone
 
 import pandas as pd
+from google.api_core import exceptions
 from google.cloud import pubsub_v1, storage
 
 from config.logger import get_logger
@@ -104,10 +105,18 @@ def consumir(duracao: int) -> None:
     log.info(f"[consumer] escutando {PUBSUB_SUBSCRIPTION} por {duracao}s")
 
     while time.time() < fim:
-        resposta = subscriber.pull(
-            request={"subscription": caminho_sub, "max_messages": MAX_EVENTOS},
-            timeout=10,
-        )
+        # Fila vazia e o estado normal quando o consumer sobe antes do
+        # publisher. O pull estoura o deadline e levanta excecao em vez de
+        # devolver lista vazia, entao seguir escutando e o comportamento
+        # correto - nao um erro a propagar.
+        try:
+            resposta = subscriber.pull(
+                request={"subscription": caminho_sub, "max_messages": MAX_EVENTOS},
+                timeout=10,
+            )
+        except (exceptions.DeadlineExceeded, exceptions.RetryError):
+            log.info("[consumer] sem eventos na janela, aguardando...")
+            continue
 
         for recebida in resposta.received_messages:
             METRICAS["recebidos"] += 1
