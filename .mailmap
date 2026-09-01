@@ -1,0 +1,6 @@
+# Unifica as identidades usadas durante o desenvolvimento.
+# O commit pela interface web do GitHub usa o e-mail noreply, o que fazia
+# o mesmo autor aparecer como dois contribuidores distintos.
+Leonardo Azevedo <gomes.azevedo98@gmail.com> <gomes.azevedo98@gmail.com>
+Leonardo Azevedo <gomes.azevedo98@gmail.com> Leonardo <gomes.azevedo98@gmail.com>
+Leonardo Azevedo <gomes.azevedo98@gmail.com> <164606583+leonardoaz98@users.noreply.github.com>

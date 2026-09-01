@@ -9,8 +9,12 @@ __pycache__/
 build/
 dist/
 
-# Credenciais
+# Credenciais — chaves de service account e segredos
 .env
+*-key.json
+*credentials*.json
+*service-account*.json
+.streamlit/secrets.toml
 
 # Dados locais (a Bronze vive no Cloud Storage)
 data/
@@ -23,5 +27,3 @@ data/
 # Editor
 .vscode/
 .idea/
-*.json
-.streamlit/secrets.toml
