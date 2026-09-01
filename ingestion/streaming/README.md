@@ -71,15 +71,25 @@ de contaminar a Silver.
 # 1. Provisiona tópico e subscription (uma vez)
 python -m ingestion.streaming.setup_pubsub
 
-# 2. Em um terminal: consumer escutando por 2 minutos
-python -m ingestion.streaming.consumer --duracao 120
+# 2. Publica 200 eventos no tópico
+python -m ingestion.streaming.publisher --eventos 200 --intervalo 0.05
 
-# 3. Em outro terminal: publica 200 eventos
-python -m ingestion.streaming.publisher --eventos 200 --intervalo 0.1
+# 3. Consome e grava os micro-batches na Bronze
+python -m ingestion.streaming.consumer --duracao 60
 
 # 4. Promove os eventos para a Silver
 python -m layers.silver.build_streaming
 ```
+
+Não é preciso rodar publisher e consumer em paralelo: a retenção de sete dias
+do Pub/Sub mantém as mensagens na fila até que alguém as consuma. Publicar
+primeiro e consumir depois é mais simples e produz o mesmo resultado — o
+consumer drena a fila acumulada logo nos primeiros pulls.
+
+Resultado de uma execução real com 200 eventos: 200 recebidos, 200 gravados,
+0 inválidos, 2 micro-batches e latência média de 21,1 s. A latência mede o
+intervalo entre a emissão e o consumo, então cresce naturalmente quando as
+mensagens aguardam na fila.
 
 ## FinOps
 

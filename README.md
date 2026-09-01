@@ -6,6 +6,8 @@ pronta para dashboards, estatística e modelos de machine learning.
 
 **Tech Challenge — Fase 2 · Pós-Tech AI Scientist (FIAP)**
 
+🔗 **[Dashboard ao vivo](https://tech-challenge2-fiap-hztjkpcavhytqixsem9vyx.streamlit.app)** — painel executivo lendo a camada Gold em tempo real
+
 ---
 
 ## O problema
@@ -330,6 +332,9 @@ python -m layers.silver.build_streaming                          # promoção
 pip install -r dashboard/requirements.txt
 streamlit run dashboard/app.py
 ```
+
+A versão publicada roda no Streamlit Community Cloud e está disponível em
+**https://tech-challenge2-fiap-hztjkpcavhytqixsem9vyx.streamlit.app**.
 
 > Todos os scripts rodam como módulo (`python -m`) a partir da raiz do
 > projeto, que é o que permite os imports de `config` e `quality`.
